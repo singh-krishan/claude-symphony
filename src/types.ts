@@ -33,6 +33,8 @@ export interface ServiceConfig {
     active_states: string[];
     terminal_states: string[];
     issues_file?: string;
+    email?: string;
+    domain?: string;
   };
   polling: {
     interval_ms: number;

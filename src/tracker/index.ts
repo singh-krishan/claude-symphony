@@ -2,6 +2,7 @@ import type { ServiceConfig } from "../types.js";
 import type { IssueTracker } from "./types.js";
 import { LocalTracker } from "./local.js";
 import { LinearTracker } from "./linear.js";
+import { JiraTracker } from "./jira.js";
 
 export type { IssueTracker } from "./types.js";
 
@@ -20,6 +21,16 @@ export function createTracker(config: ServiceConfig): IssueTracker {
     case "linear":
       return new LinearTracker(
         config.tracker.endpoint,
+        config.tracker.api_key,
+        config.tracker.project_slug,
+        config.tracker.active_states,
+        config.tracker.terminal_states,
+      );
+
+    case "jira":
+      return new JiraTracker(
+        config.tracker.domain!,
+        config.tracker.email!,
         config.tracker.api_key,
         config.tracker.project_slug,
         config.tracker.active_states,

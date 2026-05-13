@@ -72,7 +72,21 @@ export function buildConfig(workflow: WorkflowDefinition): ServiceConfig {
     getStr(workspace, "root") ?? `${tmpdir()}/symphony_workspaces`,
   );
 
-  const apiKey = resolveEnvVar(getStr(tracker, "api_key") ?? "$LINEAR_API_KEY");
+  const defaultApiKeyEnv =
+    trackerKind === "jira" ? "$JIRA_API_TOKEN" : "$LINEAR_API_KEY";
+  const apiKey = resolveEnvVar(getStr(tracker, "api_key") ?? defaultApiKeyEnv);
+
+  const defaultActiveStates =
+    trackerKind === "jira"
+      ? ["To Do", "In Progress"]
+      : ["Todo", "In Progress"];
+  const defaultTerminalStates =
+    trackerKind === "jira"
+      ? ["Done", "Closed", "Cancelled", "Canceled", "Resolved"]
+      : ["Closed", "Cancelled", "Canceled", "Duplicate", "Done"];
+
+  const email = resolveEnvVar(getStr(tracker, "email") ?? "$JIRA_EMAIL");
+  const domain = getStr(tracker, "domain") ?? "";
 
   return {
     tracker: {
@@ -84,18 +98,11 @@ export function buildConfig(workflow: WorkflowDefinition): ServiceConfig {
           : ""),
       api_key: apiKey,
       project_slug: getStr(tracker, "project_slug") ?? "",
-      active_states: getStrArray(tracker, "active_states") ?? [
-        "Todo",
-        "In Progress",
-      ],
-      terminal_states: getStrArray(tracker, "terminal_states") ?? [
-        "Closed",
-        "Cancelled",
-        "Canceled",
-        "Duplicate",
-        "Done",
-      ],
+      active_states: getStrArray(tracker, "active_states") ?? defaultActiveStates,
+      terminal_states: getStrArray(tracker, "terminal_states") ?? defaultTerminalStates,
       issues_file: getStr(tracker, "issues_file"),
+      email,
+      domain,
     },
     polling: {
       interval_ms: getNum(polling, "interval_ms") ?? 30000,
@@ -138,6 +145,27 @@ export function validateConfig(config: ServiceConfig): string[] {
     }
     if (!config.tracker.project_slug) {
       errors.push("tracker.project_slug is required when tracker.kind is 'linear'");
+    }
+  }
+
+  if (config.tracker.kind === "jira") {
+    if (!config.tracker.api_key) {
+      errors.push(
+        "tracker.api_key is required (set JIRA_API_TOKEN env var or provide in WORKFLOW.md)",
+      );
+    }
+    if (!config.tracker.email && !config.tracker.domain) {
+      errors.push(
+        "tracker.email is required (set JIRA_EMAIL env var or provide in WORKFLOW.md)",
+      );
+    }
+    if (!config.tracker.domain) {
+      errors.push(
+        "tracker.domain is required (e.g., 'mycompany.atlassian.net')",
+      );
+    }
+    if (!config.tracker.project_slug) {
+      errors.push("tracker.project_slug is required (your Jira project key, e.g., 'PROJ')");
     }
   }
 

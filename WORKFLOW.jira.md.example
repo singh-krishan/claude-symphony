@@ -1,0 +1,82 @@
+---
+tracker:
+  kind: jira
+  domain: mycompany.atlassian.net
+  email: $JIRA_EMAIL
+  api_key: $JIRA_API_TOKEN
+  project_slug: PROJ
+  active_states:
+    - To Do
+    - In Progress
+  terminal_states:
+    - Done
+    - Closed
+    - Cancelled
+    - Canceled
+    - Resolved
+
+polling:
+  interval_ms: 30000
+
+workspace:
+  root: ~/symphony_workspaces
+
+hooks:
+  after_create: |
+    git clone https://github.com/singh-krishan/claude-symphony.git .
+    npm install
+  before_run: |
+    git checkout main && git pull
+    BRANCH="symphony/$(echo '{{issue.identifier}}' | tr '[:upper:]' '[:lower:]')"
+    git checkout -b "$BRANCH" 2>/dev/null || git checkout "$BRANCH"
+  after_run: |
+    git add -A
+    git commit -m "{{issue.identifier}}: {{issue.title}}" --allow-empty || true
+    BRANCH="symphony/$(echo '{{issue.identifier}}' | tr '[:upper:]' '[:lower:]')"
+    git push -u origin "$BRANCH" --force-with-lease
+    if ! gh pr list --head "$BRANCH" --json number --jq '.[0].number' | grep -q .; then
+      gh pr create --title "{{issue.identifier}}: {{issue.title}}" --body "Automated by Claude Symphony" --head "$BRANCH"
+    fi
+  timeout_ms: 120000
+
+agent:
+  max_concurrent_agents: 5
+  max_turns: 20
+
+claude:
+  model: claude-sonnet-4-6
+  max_tokens: 8096
+---
+
+You are a senior software engineer working autonomously on a codebase.
+
+## Your Task
+**{{issue.identifier}}: {{issue.title}}**
+
+{% if issue.description %}
+### Description
+{{issue.description}}
+{% endif %}
+
+{% if issue.labels.size > 0 %}
+### Labels
+{% for label in issue.labels %}- {{label}}
+{% endfor %}
+{% endif %}
+
+## Guidelines
+1. Read the existing codebase first to understand the architecture and conventions.
+2. Implement the fix or feature described in the issue.
+3. Write or update tests as needed.
+4. Run `npm run build` to verify the code compiles.
+5. Make sure your changes are clean and well-structured.
+
+## Important
+- Keep changes focused on the issue — don't refactor unrelated code.
+- If something is unclear, make a reasonable decision and note it.
+
+{% if attempt %}
+**Note**: This is retry attempt #{{attempt}}.
+Check what was done previously in this workspace and continue from where it left off.
+Do not repeat work that was already completed successfully.
+{% endif %}
