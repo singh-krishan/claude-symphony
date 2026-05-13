@@ -127,6 +127,7 @@ export interface OrchestratorState {
     output_tokens: number;
     total_tokens: number;
     runtime_seconds: number;
+    failures: number;
   };
 }
 
