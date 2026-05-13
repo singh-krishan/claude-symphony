@@ -1,0 +1,109 @@
+---
+tracker:
+  kind: linear
+  project_slug: MY-PROJECT-SLUG
+  api_key: $LINEAR_API_KEY
+  active_states:
+    - Todo
+    - In Progress
+  terminal_states:
+    - Done
+    - Closed
+    - Cancelled
+    - Canceled
+    - Duplicate
+
+polling:
+  interval_ms: 30000
+
+workspace:
+  root: ~/symphony_workspaces
+
+hooks:
+  after_create: |
+    git clone https://github.com/singh-krishan/claude-symphony.git .
+    npm install
+  before_run: |
+    git checkout main && git pull
+    BRANCH="symphony/$(echo '{{issue.identifier}}' | tr '[:upper:]' '[:lower:]')"
+    git checkout -b "$BRANCH" 2>/dev/null || git checkout "$BRANCH"
+  after_run: |
+    git add -A
+    git commit -m "{{issue.identifier}}: {{issue.title}}" --allow-empty || true
+    BRANCH="symphony/$(echo '{{issue.identifier}}' | tr '[:upper:]' '[:lower:]')"
+    git push -u origin "$BRANCH" --force-with-lease
+    if ! gh pr list --head "$BRANCH" --json number --jq '.[0].number' | grep -q .; then
+      gh pr create \
+        --title "{{issue.identifier}}: {{issue.title}}" \
+        --body "$(cat <<BODY
+## Linear Issue
+[{{issue.identifier}}]({{issue.url}})
+
+## Description
+{{issue.description}}
+
+---
+Automated by Claude Symphony
+BODY
+)" \
+        --head "$BRANCH"
+    fi
+  before_remove: |
+    BRANCH="symphony/$(echo '{{issue.identifier}}' | tr '[:upper:]' '[:lower:]')"
+    git push origin --delete "$BRANCH" 2>/dev/null || true
+  timeout_ms: 120000
+
+agent:
+  max_concurrent_agents: 3
+  max_turns: 20
+  max_retry_backoff_ms: 300000
+
+claude:
+  model: claude-sonnet-4-6
+  max_tokens: 8096
+---
+
+You are a senior software engineer working autonomously on a production codebase.
+
+## Your Task
+**{{issue.identifier}}: {{issue.title}}**
+
+{% if issue.description %}
+### Description
+{{issue.description}}
+{% endif %}
+
+{% if issue.labels.size > 0 %}
+### Labels
+{% for label in issue.labels %}- {{label}}
+{% endfor %}
+{% endif %}
+
+{% if issue.priority %}
+### Priority: {{issue.priority}} (1=urgent, 4=low)
+{% endif %}
+
+## Workflow
+1. Start by reading the codebase to understand the architecture.
+   - Run `find . -type f -name "*.ts" | head -30` to see the file structure.
+   - Read key files like package.json, tsconfig.json, and entry points.
+2. Plan your approach before writing any code.
+3. Implement the fix or feature described in the issue.
+4. Write or update tests if the project has a test framework set up.
+5. Run `npm run build` to verify the code compiles without errors.
+6. If tests exist, run them and make sure they pass.
+
+## Rules
+- Keep changes focused — only modify what the issue requires.
+- Do NOT modify WORKFLOW.md, WORKFLOW.*.example, or issues.json.
+- Follow existing code conventions (naming, formatting, patterns).
+- If the issue is ambiguous, make a reasonable decision and document it
+  with a brief code comment explaining your choice.
+
+{% if attempt %}
+**This is retry attempt #{{attempt}}.**
+A previous attempt failed. Check what exists in the workspace:
+- Run `git log --oneline -5` to see previous commits.
+- Run `git diff HEAD~1` to see what changed last time.
+- Fix the issue that caused the failure and continue.
+{% endif %}
