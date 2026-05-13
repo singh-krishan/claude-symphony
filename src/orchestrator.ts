@@ -39,7 +39,7 @@ export class Orchestrator {
       claimed: new Set(),
       retry_attempts: new Map(),
       completed: new Set(),
-      totals: { input_tokens: 0, output_tokens: 0, total_tokens: 0, runtime_seconds: 0 },
+      totals: { input_tokens: 0, output_tokens: 0, total_tokens: 0, runtime_seconds: 0, failures: 0 },
     };
   }
 
@@ -74,35 +74,100 @@ export class Orchestrator {
 
   async stop(): Promise<void> {
     this.shuttingDown = true;
-    log.info({ event: "shutdown_started" });
 
     if (this.pollTimer) {
       clearInterval(this.pollTimer);
       this.pollTimer = null;
     }
 
+    const now = Date.now();
+
+    // Collect running agents info before aborting
+    const runningAgents = Array.from(this.state.running.values()).map((entry) => ({
+      identifier: entry.issue.identifier,
+      turnCount: entry.session.turn_count,
+      elapsedSeconds: Math.round((now - entry.session.started_at) / 1000),
+    }));
+
+    // Collect pending retries info before clearing
+    const pendingRetries = Array.from(this.state.retry_attempts.values()).map((retry) => ({
+      identifier: retry.identifier,
+      attempt: retry.attempt,
+      dueInSeconds: Math.max(0, Math.round((retry.due_at_ms - now) / 1000)),
+    }));
+
+    // Cancel all pending retries
     for (const [, retry] of this.state.retry_attempts) {
       clearTimeout(retry.timer_handle);
     }
     this.state.retry_attempts.clear();
 
-    for (const [id, entry] of this.state.running) {
-      log.info({
-        event: "shutdown_abort",
-        issue_identifier: entry.issue.identifier,
-      });
+    // Abort all running agents
+    for (const [, entry] of this.state.running) {
       entry.session.abort_controller.abort();
     }
 
+    // Wait for all running agents to finish
     const promises = Array.from(this.state.running.values()).map((e) =>
       e.promise.catch(() => {}),
     );
     await Promise.allSettled(promises);
 
+    // Print human-readable shutdown summary
+    const lines: string[] = [];
+    lines.push("Claude Symphony shutting down...");
+
+    if (runningAgents.length > 0) {
+      const agentList = runningAgents
+        .map((a) => `${a.identifier} (turn ${a.turnCount}, ${this.formatDuration(a.elapsedSeconds)})`)
+        .join(", ");
+      const plural = runningAgents.length === 1 ? "agent" : "agents";
+      lines.push(`  Stopping ${runningAgents.length} running ${plural}: ${agentList}`);
+    }
+
+    if (pendingRetries.length > 0) {
+      const retryList = pendingRetries
+        .map((r) => `${r.identifier} (attempt ${r.attempt}, due in ${this.formatDuration(r.dueInSeconds)})`)
+        .join(", ");
+      const plural = pendingRetries.length === 1 ? "retry" : "retries";
+      lines.push(`  Cancelling ${pendingRetries.length} pending ${plural}: ${retryList}`);
+    }
+
+    const totals = this.state.totals;
+    const successCount = this.state.completed.size;
+    const failureCount = totals.failures;
+    const issuesProcessed = successCount + failureCount;
+    const totalRuntimeSeconds = Math.round(totals.runtime_seconds);
+
+    lines.push("  Session summary:");
+    lines.push(`    Issues processed: ${issuesProcessed}`);
+    lines.push(`    Successful: ${successCount}`);
+    lines.push(`    Failed: ${failureCount}`);
+    lines.push(`    Total tokens: ${totals.total_tokens.toLocaleString()}`);
+    lines.push(`    Total runtime: ${this.formatDuration(totalRuntimeSeconds)}`);
+
+    process.stderr.write(lines.join("\n") + "\n");
+
     log.info({
       event: "shutdown_complete",
-      totals: this.state.totals,
+      issues_processed: issuesProcessed,
+      successful: successCount,
+      failed: failureCount,
+      total_tokens: totals.total_tokens,
+      runtime_seconds: totalRuntimeSeconds,
     });
+  }
+
+  private formatDuration(seconds: number): string {
+    if (seconds < 60) {
+      return `${seconds}s`;
+    }
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    if (remainingSeconds === 0) {
+      return `${minutes}m`;
+    }
+    return `${minutes}m ${remainingSeconds}s`;
   }
 
   getSnapshot(): {
@@ -353,6 +418,7 @@ export class Orchestrator {
 
     if (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
+      this.state.totals.failures++;
       log.error({
         event: "worker_failed",
         issue_identifier: issue.identifier,
