@@ -1,5 +1,5 @@
 import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { resolve, isAbsolute } from "node:path";
 import type { ServiceConfig, WorkflowDefinition } from "./types.js";
 
 function resolveEnvVar(value: string): string {
@@ -175,12 +175,43 @@ export function validateConfig(config: ServiceConfig): string[] {
     }
   }
 
-  if (config.polling.interval_ms <= 0) {
-    errors.push("polling.interval_ms must be positive");
+  if (config.polling.interval_ms < 1000) {
+    errors.push(
+      `polling.interval_ms must be >= 1000 (got ${config.polling.interval_ms}); lower values risk accidental API hammering`,
+    );
   }
 
-  if (config.agent.max_concurrent_agents <= 0) {
-    errors.push("agent.max_concurrent_agents must be positive");
+  if (config.agent.max_turns < 1 || config.agent.max_turns > 100) {
+    errors.push(
+      `agent.max_turns must be between 1 and 100 (got ${config.agent.max_turns})`,
+    );
+  }
+
+  if (
+    config.agent.max_concurrent_agents < 1 ||
+    config.agent.max_concurrent_agents > 50
+  ) {
+    errors.push(
+      `agent.max_concurrent_agents must be between 1 and 50 (got ${config.agent.max_concurrent_agents})`,
+    );
+  }
+
+  if (config.claude.max_tokens < 1 || config.claude.max_tokens > 64000) {
+    errors.push(
+      `claude.max_tokens must be between 1 and 64000 (got ${config.claude.max_tokens})`,
+    );
+  }
+
+  if (config.hooks.timeout_ms < 1000 || config.hooks.timeout_ms > 600000) {
+    errors.push(
+      `hooks.timeout_ms must be between 1000 and 600000 (got ${config.hooks.timeout_ms})`,
+    );
+  }
+
+  if (!isAbsolute(config.workspace.root)) {
+    errors.push(
+      `workspace.root must be an absolute path after expansion (got "${config.workspace.root}")`,
+    );
   }
 
   return errors;
