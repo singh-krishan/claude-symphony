@@ -40,7 +40,7 @@ const CANDIDATE_ISSUES_QUERY = `
       }
       first: 50
       after: $after
-      orderBy: priority
+      orderBy: createdAt
     ) {
       nodes {
         id
