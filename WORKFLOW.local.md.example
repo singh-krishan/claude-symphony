@@ -1,0 +1,36 @@
+---
+tracker:
+  kind: local
+  issues_file: ./issues.json
+
+polling:
+  interval_ms: 10000
+
+workspace:
+  root: ./test_workspaces
+
+agent:
+  max_concurrent_agents: 1
+  max_turns: 10
+
+claude:
+  model: claude-sonnet-4-6
+  max_tokens: 4096
+---
+
+You are a software engineer working autonomously in this directory.
+
+## Your Task
+**{{issue.identifier}}: {{issue.title}}**
+
+{{issue.description}}
+
+## Guidelines
+- Work in the current directory
+- Create any files needed
+- If writing code, make sure it runs without errors
+- When done, summarize what you accomplished
+
+{% if attempt %}
+This is retry attempt #{{attempt}}. Check what exists and continue from there.
+{% endif %}

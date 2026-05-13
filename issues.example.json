@@ -1,0 +1,35 @@
+[
+  {
+    "id": "1",
+    "identifier": "TEST-1",
+    "title": "Create a hello world HTTP server",
+    "description": "Create a simple Node.js HTTP server in server.js that:\n- Listens on port 3000\n- Returns 'Hello World' for GET /\n- Returns 404 for other routes\n- Include a package.json with a start script",
+    "state": "Todo",
+    "priority": 1,
+    "labels": ["backend"],
+    "blocked_by": []
+  },
+  {
+    "id": "2",
+    "identifier": "TEST-2",
+    "title": "Write a fibonacci function with tests",
+    "description": "Create a file called fib.js with:\n- A function fibonacci(n) that returns the nth fibonacci number\n- Handle edge cases (n=0, n=1, negative numbers)\n\nCreate a file called fib.test.js with tests that verify:\n- fibonacci(0) === 0\n- fibonacci(1) === 1\n- fibonacci(10) === 55\n- fibonacci(-1) throws an error",
+    "state": "Todo",
+    "priority": 2,
+    "labels": ["utilities"],
+    "blocked_by": []
+  },
+  {
+    "id": "3",
+    "identifier": "TEST-3",
+    "title": "Create a README for the project",
+    "description": "Write a README.md that documents the project structure, how to run the server, and how to run the tests.",
+    "state": "Todo",
+    "priority": 3,
+    "labels": ["docs"],
+    "blocked_by": [
+      { "id": "1", "identifier": "TEST-1", "state": "Todo" },
+      { "id": "2", "identifier": "TEST-2", "state": "Todo" }
+    ]
+  }
+]

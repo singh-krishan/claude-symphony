@@ -1,0 +1,11 @@
+node_modules/
+dist/
+test_workspaces/
+*.js.map
+
+# Local test files (keep examples, ignore active copies)
+WORKFLOW.md
+issues.json
+
+# Environment
+.env

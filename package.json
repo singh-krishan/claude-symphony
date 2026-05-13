@@ -1,0 +1,25 @@
+{
+  "name": "claude-symphony",
+  "version": "1.0.0",
+  "description": "A Claude-powered coding agent orchestrator inspired by OpenAI Symphony",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "claude-symphony": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.52.0",
+    "yaml": "^2.7.1",
+    "liquidjs": "^10.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
+  }
+}
